@@ -276,10 +276,12 @@ class Index(IndexOpsMixin, PandasObject):
         from .category import CategoricalIndex
 
         if name is None and hasattr(data, "name"):
+            if not is_hashable(data.name):
+                raise TypeError("Index.name must be a hashable type")
             name = data.name
         elif name is not None:
             if not is_hashable(name):
-                raise TypeError("Index.name must be a hashable type")                
+                raise TypeError("Index.name must be a hashable type")
 
         if fastpath is not None:
             warnings.warn(
