@@ -27,6 +27,13 @@ _int64_max = np.iinfo(np.int64).max
 
 cdef float64_t NaN = <float64_t>np.NaN
 
+cdef enum InterpolationEnumType:
+    INTERPOLATION_LINEAR,
+    INTERPOLATION_LOWER,
+    INTERPOLATION_HIGHER,
+    INTERPOLATION_NEAREST,
+    INTERPOLATION_MIDPOINT
+
 
 cdef inline float64_t median_linear(float64_t* a, int n) nogil:
     cdef:
@@ -766,6 +773,9 @@ def group_quantile(ndarray[float64_t] out,
     with nogil:
         for i in range(N):
             lab = labels[i]
+            if lab == -1:  # NA group label
+                continue
+
             counts[lab] += 1
             if not mask[i]:
                 non_na_counts[lab] += 1
@@ -833,6 +843,9 @@ cdef inline bint _treat_as_na(rank_t val, bint is_datetimelike) nogil:
 
     elif rank_t is int64_t:
         return is_datetimelike and val == NPY_NAT
+    elif rank_t is uint64_t:
+        # There is no NA value for uint64
+        return False
     else:
         return val != val
 
@@ -931,7 +944,7 @@ def group_last(rank_t[:, :] out,
 def group_nth(rank_t[:, :] out,
               int64_t[:] counts,
               rank_t[:, :] values,
-              const int64_t[:] labels, int64_t rank,
+              const int64_t[:] labels, int64_t rank=1,
               Py_ssize_t min_count=-1):
     """
     Only aggregates on axis=0
@@ -1022,8 +1035,9 @@ def group_nth(rank_t[:, :] out,
 def group_rank(float64_t[:, :] out,
                rank_t[:, :] values,
                const int64_t[:] labels,
-               bint is_datetimelike, object ties_method,
-               bint ascending, bint pct, object na_option):
+               int ngroups,
+               bint is_datetimelike, object ties_method="average",
+               bint ascending=True, bint pct=False, object na_option="keep"):
     """
     Provides the rank of values within each group.
 
@@ -1033,6 +1047,9 @@ def group_rank(float64_t[:, :] out,
     values : array of rank_t values to be ranked
     labels : array containing unique label for each group, with its ordering
         matching up to the corresponding record in `values`
+    ngroups : int
+        This parameter is not used, is needed to match signatures of other
+        groupby functions.
     is_datetimelike : bool, default False
         unused in this method but provided for call compatibility with other
         Cython transformations
@@ -1278,7 +1295,8 @@ def group_max(groupby_t[:, :] out,
                     if groupby_t is uint64_t:
                         runtime_error = True
                         break
-                    out[i, j] = nan_val
+                    else:
+                        out[i, j] = nan_val
                 else:
                     out[i, j] = maxx[i, j]
 
@@ -1349,7 +1367,8 @@ def group_min(groupby_t[:, :] out,
                     if groupby_t is uint64_t:
                         runtime_error = True
                         break
-                    out[i, j] = nan_val
+                    else:
+                        out[i, j] = nan_val
                 else:
                     out[i, j] = minx[i, j]
 
